@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "bybit-history"
+version = "0.1.0"
+description = "A tool to download historical trading data from Bybit public API."
+authors = ["Eugen Soloviov <suenot@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+requests = "^2.31.0"
+beautifulsoup4 = "^4.12.3"
+
+[tool.poetry.requires-plugins]
+poetry-plugin-export = ">=1.8"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api" 
