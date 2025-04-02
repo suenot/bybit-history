@@ -1,6 +1,9 @@
 # Bybit Historical Data Downloader
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![PyPI version](https://badge.fury.io/py/bybit-history.svg)](https://pypi.org/project/bybit-history/)
+[![Downloads](https://static.pepy.tech/badge/bybit-history)](https://pepy.tech/project/bybit-history)
+[![Python Version](https://img.shields.io/pypi/pyversions/bybit-history)](https://pypi.org/project/bybit-history/)
 
 This script downloads historical market data (trades, klines, etc.) for specified cryptocurrency pairs from the Bybit public data repository ([https://public.bybit.com/](https://public.bybit.com/)). It allows filtering by date range, coin pairs, and data types, organizing the downloaded and extracted CSV files into a structured directory format.
 
