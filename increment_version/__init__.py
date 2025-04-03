@@ -1,5 +1,5 @@
 """
-Модуль для инкрементирования версии и публикации пакета в PyPI
+Module for incrementing version and publishing package to PyPI
 """
 
 from .increment import main

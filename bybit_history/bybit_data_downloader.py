@@ -188,7 +188,7 @@ def process_directory(current_url, current_output_path, data_type_name, args, ta
     csv_links = [link for link in links if link.get('href') and link.get('href').lower().endswith('.csv.gz')]
     if csv_links:
         logging.info(f"Found {len(csv_links)} potential .csv.gz files in {current_url}.")
-        # Берем первые 3 файла для анализа формата имени
+        # Take first 3 files to analyze the name format
         sample_files = [csv_link.text for csv_link in csv_links[:3]]
         logging.info(f"Sample filenames: {', '.join(sample_files)}")
         
@@ -229,14 +229,14 @@ def process_directory(current_url, current_output_path, data_type_name, args, ta
             # TODO: Enhance coin extraction and filtering based on path components as well.
             # This basic check assumes coin is at the start or follows a pattern.
             file_coin = None
-            # Улучшенные паттерны определения имени монеты
-            # Для файлов в формате BTCUSDT2023-12-31.csv.gz
+            # Improved patterns for coin name identification
+            # For files in format BTCUSDT2023-12-31.csv.gz
             match_coin = re.match(r'^([A-Z0-9]+)(?=\d{4}-\d{2}-\d{2})', csv_name)
             if match_coin:
                 file_coin = match_coin.group(1)
             else:
-                # Попробуем извлечь название монеты из пути для случая, когда файл находится в папке монеты
-                # Например, в структуре: /trading/BTCUSDT/...
+                # Try to extract coin name from path when file is in a coin folder
+                # For example, in structure: /trading/BTCUSDT/...
                 coin_from_path = os.path.basename(os.path.dirname(current_url.rstrip('/')))
                 if coin_from_path and coin_from_path.upper() != 'TRADING' and coin_from_path.upper() != 'SPOT':
                     file_coin = coin_from_path.upper()
@@ -353,23 +353,23 @@ def main():
         data_type_dir = os.path.join(args.output_dir, data_type_name)
         os.makedirs(data_type_dir, exist_ok=True)
 
-        # Если это не ALL, напрямую переходим к запрошенным монетам, а не сканируем все
+        # If not ALL, directly access requested coins instead of scanning all
         if 'ALL' not in target_coins:
             total_processed = 0
             total_skipped = 0
             
             for coin in target_coins:
                 logging.info(f"Directly accessing coin: {coin} for data type: {data_type_name}")
-                # Конструируем URL для конкретной монеты
+                # Construct URL for specific coin
                 coin_url = f"{args.base_url.rstrip('/')}/{data_type_name}/{coin}/"
                 coin_dir = os.path.join(data_type_dir, coin)
                 os.makedirs(coin_dir, exist_ok=True)
                 
                 try:
-                    # Сначала проверяем, существует ли эта монета на сервере
+                    # First check if this coin exists on the server
                     response = requests.head(coin_url)
                     if response.status_code == 200:
-                        # Если монета существует, обрабатываем её
+                        # If coin exists, process it
                         coin_processed, coin_skipped = process_directory(coin_url, coin_dir, data_type_name, args, target_coins)
                         total_processed += coin_processed
                         total_skipped += coin_skipped
@@ -382,7 +382,7 @@ def main():
             
             logging.info(f"--- Finished processing data type: {data_type_name}. Total files processed/verified: {total_processed}, total skipped/errors: {total_skipped} ---")
         else:
-            # Если запрошены все монеты, используем существующую логику сканирования директории
+            # If all coins requested, use existing directory scanning logic
             dir_url = f"{args.base_url.rstrip('/')}/{data_type_name}/" # Ensure trailing slash
             total_processed, total_skipped = process_directory(dir_url, data_type_dir, data_type_name, args, target_coins)
             logging.info(f"--- Finished processing data type: {data_type_name}. Total files processed/verified: {total_processed}, total skipped/errors: {total_skipped} ---")
