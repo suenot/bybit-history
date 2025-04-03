@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bybit-history"
-version = "0.1.1"
+version = "0.1.2"
 description = "A tool to download historical trading data from Bybit public API."
 authors = ["Eugen Soloviov <suenot@gmail.com>"]
 readme = "README.md"
