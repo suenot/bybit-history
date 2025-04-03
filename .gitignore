@@ -6,3 +6,5 @@ node_modules/
 data/
 __pycache__/
 venv/
+dist/
+build/

@@ -1,9 +1,13 @@
 [tool.poetry]
 name = "bybit-history"
-version = "0.1.0"
+version = "0.1.1"
 description = "A tool to download historical trading data from Bybit public API."
 authors = ["Eugen Soloviov <suenot@gmail.com>"]
 readme = "README.md"
+packages = [
+    {include = "bybit_history"},
+    {include = "increment_version"}
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
@@ -12,6 +16,7 @@ beautifulsoup4 = "^4.12.3"
 
 [tool.poetry.scripts]
 start = "bybit_history.bybit_data_downloader:main"
+bump = "increment_version:main"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-export = ">=1.8"
