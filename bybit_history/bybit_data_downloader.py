@@ -175,7 +175,7 @@ def process_directory(current_url, current_output_path, data_type_name, args, ta
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         logging.error(f"Error fetching directory URL {current_url}: {e}")
-        return # Stop processing this branch if listing fails
+        return 0, 0 # Stop processing this branch if listing fails
 
     soup = BeautifulSoup(response.text, 'html.parser')
     links = soup.find_all('a')
@@ -188,6 +188,10 @@ def process_directory(current_url, current_output_path, data_type_name, args, ta
     csv_links = [link for link in links if link.get('href') and link.get('href').lower().endswith('.csv.gz')]
     if csv_links:
         logging.info(f"Found {len(csv_links)} potential .csv.gz files in {current_url}.")
+        # Берем первые 3 файла для анализа формата имени
+        sample_files = [csv_link.text for csv_link in csv_links[:3]]
+        logging.info(f"Sample filenames: {', '.join(sample_files)}")
+        
         for csv_link in csv_links:
             csv_name = csv_link.text
             # --- Extract Date ---
@@ -209,6 +213,7 @@ def process_directory(current_url, current_output_path, data_type_name, args, ta
 
             # --- Date Filtering ---
             if csv_date < args.start_date:
+                logging.info(f"Skipping {csv_name} - date {csv_date} is before start date {args.start_date}")
                 files_skipped_count += 1
                 continue
             if args.end_date and csv_date > args.end_date:
@@ -216,6 +221,7 @@ def process_directory(current_url, current_output_path, data_type_name, args, ta
                 # If end_date is 2023-05-15, we should still potentially include 2023-05 monthly file.
                 # Let's refine this: Only skip if the file's *start* date (csv_date) is strictly *after* the end_date.
                 if csv_date > args.end_date:
+                     logging.info(f"Skipping {csv_name} - date {csv_date} is after end date {args.end_date}")
                      files_skipped_count += 1
                      continue
 
@@ -223,17 +229,25 @@ def process_directory(current_url, current_output_path, data_type_name, args, ta
             # TODO: Enhance coin extraction and filtering based on path components as well.
             # This basic check assumes coin is at the start or follows a pattern.
             file_coin = None
-            # Try common patterns
-            match_coin = re.match(r'^([A-Z0-9]+)(?=\d{4}|_|-)', csv_name)
+            # Улучшенные паттерны определения имени монеты
+            # Для файлов в формате BTCUSDT2023-12-31.csv.gz
+            match_coin = re.match(r'^([A-Z0-9]+)(?=\d{4}-\d{2}-\d{2})', csv_name)
             if match_coin:
                 file_coin = match_coin.group(1)
+            else:
+                # Попробуем извлечь название монеты из пути для случая, когда файл находится в папке монеты
+                # Например, в структуре: /trading/BTCUSDT/...
+                coin_from_path = os.path.basename(os.path.dirname(current_url.rstrip('/')))
+                if coin_from_path and coin_from_path.upper() != 'TRADING' and coin_from_path.upper() != 'SPOT':
+                    file_coin = coin_from_path.upper()
+                    logging.info(f"Using coin name from path: {file_coin} for file {csv_name}")
 
             if file_coin and 'ALL' not in target_coins and file_coin not in target_coins:
-                 # logging.debug(f"Skipping {csv_name} - coin {file_coin} (from filename) not in target list.")
-                 files_skipped_count += 1
-                 continue
+                logging.info(f"Skipping {csv_name} - coin {file_coin} (from filename) not in target list.")
+                files_skipped_count += 1
+                continue
             elif not file_coin:
-                 logging.debug(f"Could not reliably determine coin from filename '{csv_name}'. Proceeding without filename-based coin filtering.")
+                logging.debug(f"Could not reliably determine coin from filename '{csv_name}'. Proceeding without filename-based coin filtering.")
 
             # --- File Handling ---
             csv_url = f"{current_url.rstrip('/')}/{csv_link.get('href')}"
@@ -243,10 +257,13 @@ def process_directory(current_url, current_output_path, data_type_name, args, ta
             extracted_path = os.path.join(current_output_path, extracted_filename)
             archive_path = os.path.join(current_output_path, csv_name)
 
+            logging.info(f"Downloading file: {csv_name}, date: {csv_date}")
             if download_and_extract(csv_url, archive_path, extracted_path):
                 files_processed_count += 1
+                logging.info(f"Successfully processed file: {csv_name}")
             else:
                  files_skipped_count += 1 # Failed download/extract
+                 logging.warning(f"Failed to download or extract file: {csv_name}")
 
     # --- Process Subdirectories (Recursion) ---
     subdir_links = [link for link in links if link.get('href') and link.get('href').endswith('/') and link.get('href') != '../']
@@ -336,12 +353,39 @@ def main():
         data_type_dir = os.path.join(args.output_dir, data_type_name)
         os.makedirs(data_type_dir, exist_ok=True)
 
-        # Construct the directory URL for this data type
-        dir_url = f"{args.base_url.rstrip('/')}/{data_type_name}/" # Ensure trailing slash
-
-        # Process the files/subdirs within that directory recursively
-        total_processed, total_skipped = process_directory(dir_url, data_type_dir, data_type_name, args, target_coins)
-        logging.info(f"--- Finished processing data type: {data_type_name}. Total files processed/verified: {total_processed}, total skipped/errors: {total_skipped} ---")
+        # Если это не ALL, напрямую переходим к запрошенным монетам, а не сканируем все
+        if 'ALL' not in target_coins:
+            total_processed = 0
+            total_skipped = 0
+            
+            for coin in target_coins:
+                logging.info(f"Directly accessing coin: {coin} for data type: {data_type_name}")
+                # Конструируем URL для конкретной монеты
+                coin_url = f"{args.base_url.rstrip('/')}/{data_type_name}/{coin}/"
+                coin_dir = os.path.join(data_type_dir, coin)
+                os.makedirs(coin_dir, exist_ok=True)
+                
+                try:
+                    # Сначала проверяем, существует ли эта монета на сервере
+                    response = requests.head(coin_url)
+                    if response.status_code == 200:
+                        # Если монета существует, обрабатываем её
+                        coin_processed, coin_skipped = process_directory(coin_url, coin_dir, data_type_name, args, target_coins)
+                        total_processed += coin_processed
+                        total_skipped += coin_skipped
+                    else:
+                        logging.warning(f"Coin {coin} not found for data type {data_type_name} (URL: {coin_url})")
+                        total_skipped += 1
+                except requests.exceptions.RequestException as e:
+                    logging.error(f"Error checking coin URL {coin_url}: {e}")
+                    total_skipped += 1
+            
+            logging.info(f"--- Finished processing data type: {data_type_name}. Total files processed/verified: {total_processed}, total skipped/errors: {total_skipped} ---")
+        else:
+            # Если запрошены все монеты, используем существующую логику сканирования директории
+            dir_url = f"{args.base_url.rstrip('/')}/{data_type_name}/" # Ensure trailing slash
+            total_processed, total_skipped = process_directory(dir_url, data_type_dir, data_type_name, args, target_coins)
+            logging.info(f"--- Finished processing data type: {data_type_name}. Total files processed/verified: {total_processed}, total skipped/errors: {total_skipped} ---")
 
 
 # Wrap the script execution in a main function call

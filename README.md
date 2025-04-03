@@ -13,6 +13,8 @@ This script downloads historical market data (trades, klines, etc.) for specifie
     *   Specify start and end dates (`--start-date`, `--end-date`).
     *   Select specific coin pairs (e.g., `BTCUSDT,ETHUSDT`) or download all (`--coins ALL`).
     *   Choose data types (e.g., `trading,spot`) or download all (`--data-types ALL`).
+*   **Optimized Coin Access:** Direct access to specified coins without scanning all directories when specific coins are requested.
+*   **Intelligent Name Detection:** Extracts coin name from both file name and directory path.
 *   **Organized Output:** Data is saved to a specified output directory (`--output-dir`, default `./data`), with subdirectories for each data type (e.g., `./data/trading/`, `./data/spot/`).
 *   **Recursive Directory Traversal:** Handles different directory structures found in the Bybit repository (e.g., flat file lists, coin-based subdirectories, year-based subdirectories).
 *   **Automatic Extraction:** Downloads `.csv.gz` archives, extracts them to `.csv`, and removes the archives.
@@ -39,6 +41,14 @@ This script downloads historical market data (trades, klines, etc.) for specifie
 
 ## Usage
 
+### Using Poetry Script (Recommended)
+
+```bash
+poetry run start --start-date <YYYY-MM-DD> --coins <COINS> [OPTIONS]
+```
+
+### Alternative Method
+
 ```bash
 poetry run python bybit_data_downloader.py --start-date <YYYY-MM-DD> --coins <COINS> [OPTIONS]
 ```
@@ -60,7 +70,7 @@ poetry run python bybit_data_downloader.py --start-date <YYYY-MM-DD> --coins <CO
 **Example:**
 
 ```bash
-poetry run python bybit_data_downloader.py --start-date 2023-01-01 --end-date 2023-01-31 --coins BTCUSDT,ETHUSDT --data-types trading,spot --output-dir ./bybit_data
+poetry run start --start-date 2023-01-01 --end-date 2023-01-31 --coins BTCUSDT,ETHUSDT --data-types trading,spot --output-dir ./bybit_data
 ```
 
 ## Algorithm Overview
@@ -72,44 +82,58 @@ flowchart TD
     C --> D{Fetch Base URL HTML};
     D --> E{Extract Data Type Links};
     E --> F{Loop Through Requested Data Types};
-    F -- For Each Type --> G[Construct Type URL & Output Path];
-    G --> H(Call process_directory);
+    F -- For Each Type --> G[Create Data Type Directory];
+    G --> H{Coins = ALL?};
+    H -- No --> DirectAccess[Direct Access to Specific Coins];
+    DirectAccess --> I1{Loop Through Requested Coins};
+    I1 -- For Each Coin --> J1[Construct Coin URL];
+    J1 --> K1{Coin Exists on Server?};
+    K1 -- Yes --> L1(Call process_directory);
+    L1 --> I1;
+    K1 -- No --> M1[Log Warning & Skip];
+    M1 --> I1;
+    I1 -- Loop Finished --> F;
+    H -- Yes --> N[Construct Type URL & Path];
+    N --> O(Call process_directory);
+    O --> F;
     F -- Loop Finished --> Z[End];
 
     subgraph process_directory [process_directory]
-        H --> I{Fetch Directory HTML};
-        I --> J{Find .csv.gz Links};
-        J --> K{Loop Files};
-        K -- For Each File --> L{Extract Date};
-        L --> M{Filter by Date?};
-        M -- Yes --> N{Extract Coin from Name?};
-        N -- Yes --> O{Filter by Coin?};
-        O -- Yes --> P{Build Paths};
-        P --> Q{File Exists?};
-        Q -- No --> R(Call download_and_extract);
-        Q -- Yes --> K;
-        R --> K;
-        O -- No --> P; 
-        N -- No --> P; 
-        M -- No --> K;
-        K -- Loop Finished --> S{Find Subdirectory Links};
-        S --> T{Loop Subdirs};
-        T -- For Each Subdir --> U{Build Next URL & Path};
-        U --> V{Filter by Coin?};
-        V -- Yes --> W(Recursive Call process_directory);
-        W --> T;
-        V -- No --> T;
-        T -- Loop Finished --> X[Return Counts];
+        L1 & O --> P{Fetch Directory HTML};
+        P --> Q{Find .csv.gz Links};
+        Q --> R{Loop Through Files};
+        R -- For Each File --> T{Extract Date};
+        T --> U{Filter by Date?};
+        U -- Yes --> V{Extract Coin from Name?};
+        V -- Yes --> W{Filter by Coin?};
+        W -- Yes --> X{Build Paths};
+        X --> Y{File Exists?};
+        Y -- No --> AA(Call download_and_extract);
+        Y -- Yes --> R;
+        AA --> R;
+        W -- No --> X; 
+        V -- No --> BB{Extract Coin from Path?};
+        BB -- Yes --> W;
+        BB -- No --> X;
+        U -- No --> R;
+        R -- Loop Finished --> CC{Find Subdirectory Links};
+        CC --> DD{Loop Through Subdirs};
+        DD -- For Each Subdir --> EE{Build Next URL & Path};
+        EE --> FF{Filter by Coin?};
+        FF -- Yes --> GG(Recursive Call process_directory);
+        GG --> DD;
+        FF -- No --> DD;
+        DD -- Loop Finished --> HH[Return Counts];
     end
 
     subgraph download_and_extract [download_and_extract]
-        R --> R1{Download .gz?};
-        R1 -- Success --> R2{Extract .csv?};
-        R2 -- Success --> R3{Remove .gz};
-        R3 --> R4[Return Success];
-        R1 -- Fail --> R5[Log Error & Cleanup];
-        R2 -- Fail --> R5;
-        R5 --> R6[Return Failure];
+        AA --> AA1{Download .gz?};
+        AA1 -- Success --> AA2{Extract .csv?};
+        AA2 -- Success --> AA3{Remove .gz};
+        AA3 --> AA4[Return Success];
+        AA1 -- Fail --> AA5[Log Error & Cleanup];
+        AA2 -- Fail --> AA5;
+        AA5 --> AA6[Return Failure];
     end
 ```
 

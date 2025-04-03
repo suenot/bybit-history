@@ -10,6 +10,9 @@ python = "^3.8"
 requests = "^2.31.0"
 beautifulsoup4 = "^4.12.3"
 
+[tool.poetry.scripts]
+start = "bybit_history.bybit_data_downloader:main"
+
 [tool.poetry.requires-plugins]
 poetry-plugin-export = ">=1.8"
 

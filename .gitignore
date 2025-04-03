@@ -3,3 +3,6 @@
 .env
 *.log
 node_modules/
+data/
+__pycache__/
+venv/
